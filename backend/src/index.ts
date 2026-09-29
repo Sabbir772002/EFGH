@@ -7,6 +7,7 @@ import authRoutes from './routes/auth';
 import stopsRoutes from './routes/stops';
 import routesRoutes from './routes/routes';
 import fareRoutes from './routes/fare';
+import ridesRoutes from './routes/rides';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/stops', stopsRoutes);
 app.use('/api/v1/routes', routesRoutes);
 app.use('/api/v1/fare', fareRoutes);
+app.use('/api/v1/rides', ridesRoutes);
 
 // Centralized error handling
 app.use(errorHandler);
