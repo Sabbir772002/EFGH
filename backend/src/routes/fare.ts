@@ -11,9 +11,9 @@ import {
 const router = Router();
 
 const estimateQuerySchema = z.object({
-  pickupStopId:  z.string().uuid('pickupStopId must be a valid UUID'),
+  pickupStopId: z.string().uuid('pickupStopId must be a valid UUID'),
   dropoffStopId: z.string().uuid('dropoffStopId must be a valid UUID'),
-  routeId:       z.string().uuid('routeId must be a valid UUID'),
+  routeId: z.string().uuid('routeId must be a valid UUID'),
 });
 
 // GET /api/v1/fare/estimate?pickupStopId=X&dropoffStopId=Y&routeId=Z
@@ -42,13 +42,13 @@ router.get('/estimate', async (req: Request, res: Response, next: NextFunction) 
     }
 
     const routeStops: StopCoord[] = route.routeStops.map((rs) => ({
-      id:  rs.stop.id,
+      id: rs.stop.id,
       lat: Number(rs.stop.lat),
       lng: Number(rs.stop.lng),
     }));
 
     // Validate pickup and dropoff are on this route
-    const pickupIdx  = routeStops.findIndex((s) => s.id === pickupStopId);
+    const pickupIdx = routeStops.findIndex((s) => s.id === pickupStopId);
     const dropoffIdx = routeStops.findIndex((s) => s.id === dropoffStopId);
 
     if (pickupIdx === -1) {
@@ -83,11 +83,11 @@ router.get('/estimate', async (req: Request, res: Response, next: NextFunction) 
         note: 'Actual fare may be lower when pool is shared',
       },
       debug: {
-        routeName:        route.name,
-        routeDistKm:      routeDist.toFixed(3),
-        fullRouteFareTk:  routeFare,
+        routeName: route.name,
+        routeDistKm: routeDist.toFixed(3),
+        fullRouteFareTk: routeFare,
         effectiveRateTkPerKm: effectiveRate.toFixed(3),
-        pickupStop:  route.routeStops[pickupIdx]?.stop.name,
+        pickupStop: route.routeStops[pickupIdx]?.stop.name,
         dropoffStop: route.routeStops[dropoffIdx]?.stop.name,
       },
     });

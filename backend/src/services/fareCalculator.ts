@@ -101,10 +101,10 @@ export function calcPassengerFarePaisa(
   dropoffStopId: string,
   segmentLoads: Map<string, number>,   // key = `${fromId}→${toId}`, value = passenger count on that segment
 ): number {
-  const pickupIdx  = routeStops.findIndex((s) => s.id === pickupStopId);
+  const pickupIdx = routeStops.findIndex((s) => s.id === pickupStopId);
   const dropoffIdx = routeStops.findIndex((s) => s.id === dropoffStopId);
 
-  if (pickupIdx === -1)  throw new Error(`Pickup stop ${pickupStopId} not found on route`);
+  if (pickupIdx === -1) throw new Error(`Pickup stop ${pickupStopId} not found on route`);
   if (dropoffIdx === -1) throw new Error(`Dropoff stop ${dropoffStopId} not found on route`);
   if (pickupIdx >= dropoffIdx) throw new Error('Pickup stop must come before dropoff stop on route');
 
@@ -114,12 +114,12 @@ export function calcPassengerFarePaisa(
 
   for (let i = pickupIdx; i < dropoffIdx; i++) {
     const from = routeStops[i];
-    const to   = routeStops[i + 1];
+    const to = routeStops[i + 1];
 
-    const segKey      = `${from.id}→${to.id}`;
-    const passengers  = segmentLoads.get(segKey) ?? 1;  // default 1 (solo)
-    const segDist     = haversine(from.lat, from.lng, to.lat, to.lng);
-    const segCost     = segDist * effectiveRate;
+    const segKey = `${from.id}→${to.id}`;
+    const passengers = segmentLoads.get(segKey) ?? 1;  // default 1 (solo)
+    const segDist = haversine(from.lat, from.lng, to.lat, to.lng);
+    const segCost = segDist * effectiveRate;
 
     passengerRaw += segCost / passengers;
   }
@@ -149,7 +149,7 @@ export function buildSegmentLoads(
   const loads = new Map<string, number>();
 
   for (const p of passengers) {
-    const pickupIdx  = routeStops.findIndex((s) => s.id === p.pickupStopId);
+    const pickupIdx = routeStops.findIndex((s) => s.id === p.pickupStopId);
     const dropoffIdx = routeStops.findIndex((s) => s.id === p.dropoffStopId);
 
     for (let i = pickupIdx; i < dropoffIdx; i++) {

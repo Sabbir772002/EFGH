@@ -33,17 +33,17 @@ router.patch('/status', async (req: AuthenticatedRequest, res: Response, next: N
 
     const user = await prisma.user.update({
       where: { id: req.user!.id },
-      data:  { isOnline: online },
+      data: { isOnline: online },
       select: { id: true, name: true, isOnline: true },
     });
 
     await log({
       entityType: 'user',
-      entityId:   req.user!.id,
-      action:     AuditAction.DRIVER_STATUS_CHANGED,
-      oldValue:   { isOnline: !online },
-      newValue:   { isOnline: online },
-      actorId:    req.user!.id,
+      entityId: req.user!.id,
+      action: AuditAction.DRIVER_STATUS_CHANGED,
+      oldValue: { isOnline: !online },
+      newValue: { isOnline: online },
+      actorId: req.user!.id,
     });
 
     res.json({
@@ -86,14 +86,14 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response, next: 
       },
       orderBy: { createdAt: 'desc' },
       include: {
-        route:       { select: { id: true, name: true } },
-        originStop:  { select: { id: true, name: true } },
-        destStop:    { select: { id: true, name: true } },
+        route: { select: { id: true, name: true } },
+        originStop: { select: { id: true, name: true } },
+        destStop: { select: { id: true, name: true } },
         rideRequests: {
           where: { status: { not: 'cancelled' } },
           include: {
-            passenger:   { select: { id: true, name: true, phone: true } },
-            pickupStop:  { select: { id: true, name: true } },
+            passenger: { select: { id: true, name: true, phone: true } },
+            pickupStop: { select: { id: true, name: true } },
             dropoffStop: { select: { id: true, name: true } },
           },
         },
@@ -107,37 +107,37 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response, next: 
 
     res.json({
       driver: {
-        id:       req.user!.id,
-        name:     req.user!.name,
+        id: req.user!.id,
+        name: req.user!.name,
         isOnline: req.user!.isOnline,
       },
       vehicle: {
-        id:       vehicle.id,
-        name:     vehicle.name,
-        plate:    vehicle.plate,
+        id: vehicle.id,
+        name: vehicle.name,
+        plate: vehicle.plate,
         capacity: vehicle.capacity,
       },
       activePool: activePool
         ? {
-            id:         activePool.id,
-            status:     activePool.status,
-            route:      activePool.route,
-            originStop: activePool.originStop,
-            destStop:   activePool.destStop,
-            seatsTaken,
-            seatsFree:  vehicle.capacity - seatsTaken,
-            passengers: activePool.rideRequests.map((r) => ({
-              rideId:      r.id,
-              status:      r.status,
-              farePaisa:   r.farePaisa,
-              fareTk:      r.farePaisa !== null ? (r.farePaisa / 100).toFixed(2) : null,
-              seats:       r.seats,
-              passenger:   r.passenger,
-              pickupStop:  r.pickupStop,
-              dropoffStop: r.dropoffStop,
-              pickupNote:  r.pickupNote,
-            })),
-          }
+          id: activePool.id,
+          status: activePool.status,
+          route: activePool.route,
+          originStop: activePool.originStop,
+          destStop: activePool.destStop,
+          seatsTaken,
+          seatsFree: vehicle.capacity - seatsTaken,
+          passengers: activePool.rideRequests.map((r) => ({
+            rideId: r.id,
+            status: r.status,
+            farePaisa: r.farePaisa,
+            fareTk: r.farePaisa !== null ? (r.farePaisa / 100).toFixed(2) : null,
+            seats: r.seats,
+            passenger: r.passenger,
+            pickupStop: r.pickupStop,
+            dropoffStop: r.dropoffStop,
+            pickupNote: r.pickupNote,
+          })),
+        }
         : null,
     });
   } catch (err) {

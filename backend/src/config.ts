@@ -22,3 +22,4 @@ if (!parsed.success) {
 }
 
 export const config = parsed.data;
+export const env = parsed.data; // alias — imported as { env } throughout codebase

@@ -70,19 +70,19 @@ router.get('/ride/:rideId', async (req: AuthenticatedRequest, res: Response, nex
         const updated = await prisma.rideRequest.findUnique({
           where: { id: rideId },
           select: {
-            id:            true,
-            status:        true,
-            farePaisa:     true,
+            id: true,
+            status: true,
+            farePaisa: true,
             paymentStatus: true,
-            updatedAt:     true,
+            updatedAt: true,
             pool: {
               select: {
-                id:     true,
+                id: true,
                 status: true,
                 vehicle: { select: { name: true, plate: true } },
               },
             },
-            pickupStop:  { select: { name: true } },
+            pickupStop: { select: { name: true } },
             dropoffStop: { select: { name: true } },
           },
         });
@@ -144,12 +144,12 @@ router.get('/driver/requests', async (req: AuthenticatedRequest, res: Response, 
           },
           orderBy: { createdAt: 'asc' },
           select: {
-            id:        true,
-            status:    true,
-            seats:     true,
+            id: true,
+            status: true,
+            seats: true,
             createdAt: true,
-            passenger:   { select: { id: true, name: true } },
-            pickupStop:  { select: { id: true, name: true, lat: true, lng: true } },
+            passenger: { select: { id: true, name: true } },
+            pickupStop: { select: { id: true, name: true, lat: true, lng: true } },
             dropoffStop: { select: { id: true, name: true, lat: true, lng: true } },
           },
         });

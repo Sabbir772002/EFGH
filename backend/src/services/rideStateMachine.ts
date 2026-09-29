@@ -17,22 +17,22 @@ import { RideStatus, PoolStatus } from '@prisma/client';
 // Ride Request transitions
 // ---------------------------------------------------------------------------
 const RIDE_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
-  requested:      ['matched', 'cancelled'],
-  matched:        ['driver_arrived', 'cancelled'],
+  requested: ['matched', 'cancelled'],
+  matched: ['driver_arrived', 'cancelled'],
   driver_arrived: ['started'],
-  started:        ['completed'],
-  completed:      [],   // terminal state
-  cancelled:      [],   // terminal state
+  started: ['completed'],
+  completed: [],   // terminal state
+  cancelled: [],   // terminal state
 };
 
 // Who is allowed to trigger each transition?
 const RIDE_TRANSITION_ACTOR: Partial<Record<`${RideStatus}→${RideStatus}`, 'passenger' | 'driver' | 'any'>> = {
-  'requested→matched':        'driver',
-  'requested→cancelled':      'passenger',
-  'matched→driver_arrived':   'driver',
-  'matched→cancelled':        'driver',
-  'driver_arrived→started':   'driver',
-  'started→completed':        'driver',
+  'requested→matched': 'driver',
+  'requested→cancelled': 'passenger',
+  'matched→driver_arrived': 'driver',
+  'matched→cancelled': 'driver',
+  'driver_arrived→started': 'driver',
+  'started→completed': 'driver',
 };
 
 export function validateRideTransition(
@@ -60,12 +60,12 @@ export function validateRideTransition(
 // Pool transitions
 // ---------------------------------------------------------------------------
 const POOL_TRANSITIONS: Record<PoolStatus, PoolStatus[]> = {
-  open:           ['full', 'cancelled'],
-  full:           ['driver_arrived', 'cancelled'],
+  open: ['full', 'driver_arrived', 'cancelled'], // driver can depart without filling up
+  full: ['driver_arrived', 'cancelled'],
   driver_arrived: ['started', 'cancelled'],
-  started:        ['completed', 'cancelled'],
-  completed:      [],
-  cancelled:      [],
+  started: ['completed'],           // cannot cancel once started
+  completed: [],
+  cancelled: [],
 };
 
 export function validatePoolTransition(
@@ -86,9 +86,9 @@ export function validatePoolTransition(
 // ---------------------------------------------------------------------------
 export const POOL_TO_RIDE_STATUS: Partial<Record<PoolStatus, RideStatus>> = {
   driver_arrived: 'driver_arrived',
-  started:        'started',
-  completed:      'completed',
-  cancelled:      'cancelled',
+  started: 'started',
+  completed: 'completed',
+  cancelled: 'cancelled',
 };
 
 // ---------------------------------------------------------------------------

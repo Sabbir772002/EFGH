@@ -9,6 +9,7 @@ declare global {
         name: string;
         phone: string;
         role: 'passenger' | 'driver';
+        isOnline: boolean;
       };
     }
   }

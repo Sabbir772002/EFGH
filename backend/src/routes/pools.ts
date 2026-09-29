@@ -59,8 +59,8 @@ router.get('/pending', async (req: AuthenticatedRequest, res: Response, next: Ne
       },
       orderBy: { createdAt: 'asc' }, // oldest first
       include: {
-        passenger:   { select: { id: true, name: true, phone: true } },
-        pickupStop:  { select: { id: true, name: true, lat: true, lng: true } },
+        passenger: { select: { id: true, name: true, phone: true } },
+        pickupStop: { select: { id: true, name: true, lat: true, lng: true } },
         dropoffStop: { select: { id: true, name: true, lat: true, lng: true } },
       },
     });
@@ -159,30 +159,47 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
       });
 
       if (!pool) {
+        // Before creating a new pool, check the driver has no active full/in-progress pool on this route
+        const activePool = await tx.pool.findFirst({
+          where: {
+            vehicleId: vehicle.id,
+            routeId,
+            status: { in: ['full', 'driver_arrived', 'started'] },
+          },
+        });
+        if (activePool) {
+          const err = new Error(`Active pool exists in status '${activePool.status}'. Complete it before starting a new one.`);
+          (err as NodeJS.ErrnoException).code = 'ACTIVE_POOL_EXISTS';
+          throw err;
+        }
+
         // Create new pool — origin = first stop of route, dest = last stop
         const originStop = routeStopsFull[0].stop;
-        const destStop   = routeStopsFull[routeStopsFull.length - 1].stop;
+        const destStop = routeStopsFull[routeStopsFull.length - 1].stop;
 
         pool = await tx.pool.create({
           data: {
-            vehicleId:    vehicle.id,
+            vehicleId: vehicle.id,
             routeId,
             originStopId: originStop.id,
-            destStopId:   destStop.id,
-            status:       'open',
+            destStopId: destStop.id,
+            status: 'open',
           },
         });
 
         await log({
           entityType: 'pool',
-          entityId:   pool.id,
-          action:     AuditAction.POOL_CREATED,
-          newValue:   { routeId, vehicleId: vehicle.id },
-          actorId:    driverId,
+          entityId: pool.id,
+          action: AuditAction.POOL_CREATED,
+          newValue: { routeId, vehicleId: vehicle.id },
+          actorId: driverId,
         });
       } else {
-        // Lock existing pool row
-        await tx.$queryRaw`SELECT id FROM pools WHERE id = ${pool.id}::uuid FOR UPDATE`;
+        // Re-read pool inside transaction — Serializable isolation prevents phantom conflicts
+        const refreshed = await tx.pool.findUnique({ where: { id: pool.id }, select: { status: true } });
+        if (!refreshed || refreshed.status !== 'open') {
+          throw new Error('Pool is no longer open');
+        }
       }
 
       // Recount seats after lock
@@ -193,7 +210,9 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
       const taken = takenAgg._sum.seats ?? 0;
 
       if (Number(vehicle.capacity) - taken < rideRequest.seats) {
-        throw new Error(`Not enough seats: ${vehicle.capacity - taken} free, need ${rideRequest.seats}`);
+        const err = new Error(`Not enough seats: ${vehicle.capacity - taken} free, need ${rideRequest.seats}`);
+        (err as NodeJS.ErrnoException).code = 'CAPACITY_EXCEEDED';
+        throw err;
       }
 
       // Calc fare: existing passengers + this new one
@@ -244,26 +263,32 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
 
     await log({
       entityType: 'ride_request',
-      entityId:   rideRequestId,
-      action:     AuditAction.RIDE_MATCHED,
-      oldValue:   { status: 'requested', farePaisa: null },
-      newValue:   { status: 'matched', farePaisa: result.farePaisa, poolId: result.pool.id },
-      actorId:    driverId,
+      entityId: rideRequestId,
+      action: AuditAction.RIDE_MATCHED,
+      oldValue: { status: 'requested', farePaisa: null },
+      newValue: { status: 'matched', farePaisa: result.farePaisa, poolId: result.pool.id },
+      actorId: driverId,
     });
 
     res.status(201).json({
       message: 'Ride accepted and matched',
-      poolId:    result.pool.id,
+      poolId: result.pool.id,
       rideRequest: {
-        id:        result.updatedRide.id,
-        status:    result.updatedRide.status,
+        id: result.updatedRide.id,
+        status: result.updatedRide.status,
         farePaisa: result.farePaisa,
-        fareTk:    (result.farePaisa / 100).toFixed(2),
+        fareTk: (result.farePaisa / 100).toFixed(2),
       },
     });
   } catch (err) {
     if (err instanceof TransitionError) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: (err as Error).message });
+      return;
+    }
+    // Capacity exceeded or pool no longer open — return 400, not 500
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'CAPACITY_EXCEEDED' || e.code === 'ACTIVE_POOL_EXISTS' || e.message?.startsWith('Not enough seats') || e.message?.startsWith('Pool is no longer')) {
+      res.status(400).json({ error: e.message });
       return;
     }
     next(err);
@@ -322,7 +347,7 @@ router.patch('/:poolId/status', async (req: AuthenticatedRequest, res: Response,
       // Advance pool
       await tx.pool.update({
         where: { id: poolId },
-        data:  { status: nextStatus },
+        data: { status: nextStatus },
       });
 
       // Cascade to active ride_requests
@@ -336,7 +361,7 @@ router.patch('/:poolId/status', async (req: AuthenticatedRequest, res: Response,
             validateRideTransition(ride.status as RideStatus, rideNextStatus, 'driver');
             await tx.rideRequest.update({
               where: { id: ride.id },
-              data:  { status: rideNextStatus },
+              data: { status: rideNextStatus },
             });
           } catch {
             // Skip rides that can't follow (e.g., already cancelled)
@@ -347,11 +372,11 @@ router.patch('/:poolId/status', async (req: AuthenticatedRequest, res: Response,
 
     await log({
       entityType: 'pool',
-      entityId:   poolId,
-      action:     AuditAction.POOL_STATUS_CHANGED,
-      oldValue:   { status: pool.status },
-      newValue:   { status: nextStatus },
-      actorId:    driverId,
+      entityId: poolId,
+      action: AuditAction.POOL_STATUS_CHANGED,
+      oldValue: { status: pool.status },
+      newValue: { status: nextStatus },
+      actorId: driverId,
     });
 
     res.json({

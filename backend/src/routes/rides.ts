@@ -16,12 +16,12 @@ router.use(authMiddleware);
 // POST /api/v1/rides — Passenger books a ride
 // ---------------------------------------------------------------------------
 const bookRideSchema = z.object({
-  routeId:       z.string().uuid('routeId must be a valid UUID'),
-  pickupStopId:  z.string().uuid('pickupStopId must be a valid UUID'),
+  routeId: z.string().uuid('routeId must be a valid UUID'),
+  pickupStopId: z.string().uuid('pickupStopId must be a valid UUID'),
   dropoffStopId: z.string().uuid('dropoffStopId must be a valid UUID'),
-  seats:         z.number().int().min(1).max(3).default(1),
+  seats: z.number().int().min(1).max(3).default(1),
   paymentMethod: z.enum(['cash', 'wallet']).default('cash'),
-  pickupNote:    z.string().max(200).optional(),
+  pickupNote: z.string().max(200).optional(),
 });
 
 router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -34,22 +34,22 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
     const data = bookRideSchema.parse(req.body);
 
     const matchResult = await matchOrEnqueue({
-      passengerId:   req.user.id,
-      routeId:       data.routeId,
-      pickupStopId:  data.pickupStopId,
+      passengerId: req.user.id,
+      routeId: data.routeId,
+      pickupStopId: data.pickupStopId,
       dropoffStopId: data.dropoffStopId,
-      seats:         data.seats,
+      seats: data.seats,
       paymentMethod: data.paymentMethod,
-      pickupNote:    data.pickupNote,
+      pickupNote: data.pickupNote,
     });
 
     // Audit log the ride creation
     await log({
       entityType: 'ride_request',
-      entityId:   matchResult.rideRequestId,
-      action:     matchResult.status === 'matched' ? AuditAction.RIDE_MATCHED : AuditAction.RIDE_CREATED,
-      newValue:   { status: matchResult.status, farePaisa: matchResult.farePaisa },
-      actorId:    req.user.id,
+      entityId: matchResult.rideRequestId,
+      action: matchResult.status === 'matched' ? AuditAction.RIDE_MATCHED : AuditAction.RIDE_CREATED,
+      newValue: { status: matchResult.status, farePaisa: matchResult.farePaisa },
+      actorId: req.user.id,
     });
 
     res.status(201).json({
@@ -57,12 +57,12 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
         ? 'Matched to an existing pool!'
         : 'Ride requested — waiting for a driver to accept',
       rideRequestId: matchResult.rideRequestId,
-      status:        matchResult.status,
-      farePaisa:     matchResult.farePaisa,
-      fareTk:        matchResult.farePaisa !== null
+      status: matchResult.status,
+      farePaisa: matchResult.farePaisa,
+      fareTk: matchResult.farePaisa !== null
         ? (matchResult.farePaisa / 100).toFixed(2)
         : null,
-      poolId:        matchResult.poolId,
+      poolId: matchResult.poolId,
     });
   } catch (err) {
     next(err);
@@ -83,7 +83,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
       where: { passengerId: req.user.id }, // ← strict: own rides only
       orderBy: { createdAt: 'desc' },
       include: {
-        pickupStop:  { select: { id: true, name: true, lat: true, lng: true } },
+        pickupStop: { select: { id: true, name: true, lat: true, lng: true } },
         dropoffStop: { select: { id: true, name: true, lat: true, lng: true } },
         pool: {
           select: {
@@ -121,11 +121,11 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
     const ride = await prisma.rideRequest.findUnique({
       where: { id: req.params.id },
       include: {
-        pickupStop:  true,
+        pickupStop: true,
         dropoffStop: true,
         pool: {
           include: {
-            route:   { select: { id: true, name: true } },
+            route: { select: { id: true, name: true } },
             vehicle: { select: { id: true, name: true, plate: true } },
           },
         },
@@ -189,16 +189,16 @@ router.patch('/:id/cancel', async (req: AuthenticatedRequest, res: Response, nex
 
     const updated = await prisma.rideRequest.update({
       where: { id: ride.id },
-      data:  { status: 'cancelled' },
+      data: { status: 'cancelled' },
     });
 
     await log({
       entityType: 'ride_request',
-      entityId:   ride.id,
-      action:     AuditAction.RIDE_CANCELLED,
-      oldValue:   { status: ride.status },
-      newValue:   { status: 'cancelled' },
-      actorId:    req.user.id,
+      entityId: ride.id,
+      action: AuditAction.RIDE_CANCELLED,
+      oldValue: { status: ride.status },
+      newValue: { status: 'cancelled' },
+      actorId: req.user.id,
     });
 
     res.json({ message: 'Ride cancelled', ride: updated });
