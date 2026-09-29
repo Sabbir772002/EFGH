@@ -8,6 +8,8 @@ import stopsRoutes from './routes/stops';
 import routesRoutes from './routes/routes';
 import fareRoutes from './routes/fare';
 import ridesRoutes from './routes/rides';
+import driverRoutes from './routes/driver';
+import poolsRoutes from './routes/pools';
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use('/api/v1/stops', stopsRoutes);
 app.use('/api/v1/routes', routesRoutes);
 app.use('/api/v1/fare', fareRoutes);
 app.use('/api/v1/rides', ridesRoutes);
+app.use('/api/v1/driver', driverRoutes);
+app.use('/api/v1/pools', poolsRoutes);
 
 // Centralized error handling
 app.use(errorHandler);
