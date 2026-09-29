@@ -1,37 +1,35 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import { config } from './config';
+import { env } from './config';
 import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
-import authRouter from './routes/auth';
-import stopsRouter from './routes/stops';
-import routesRouter from './routes/routes';
+import authRoutes from './routes/auth';
+import stopsRoutes from './routes/stops';
+import routesRoutes from './routes/routes';
 
-export const app = express();
+const app = express();
 
-// ── Global middleware ──────────────────────────────────────────────────────
-app.use(helmet());                   // security headers
-app.use(cors());                     // allow cross-origin requests
-app.use(express.json());             // parse JSON bodies
-app.use(requestLogger);              // log every request
+app.use(cors());
+app.use(express.json());
+app.use(requestLogger);
 
-// ── Health check ───────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'dhaka-tesla-pool' });
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Routes ─────────────────────────────────────────────────────────────────
-app.use('/auth',   authRouter);
-app.use('/stops',  stopsRouter);
-app.use('/routes', routesRouter);
+// API v1 routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/stops', stopsRoutes);
+app.use('/api/v1/routes', routesRoutes);
 
-// ── Central error handler (must be last) ───────────────────────────────────
+// Centralized error handling
 app.use(errorHandler);
 
-// ── Start server (only when run directly, not in tests) ───────────────────
-if (require.main === module) {
-  app.listen(Number(config.PORT), () => {
-    console.log(`🚗 Dhaka Tesla Pool API running on port ${config.PORT}`);
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(env.PORT, () => {
+    console.log(`🚀 Dhaka Tesla Pool Backend listening on port ${env.PORT}`);
   });
 }
+
+export default app;
