@@ -1,0 +1,198 @@
+// Dhaka Tesla Pool — Prisma Schema
+// Money: all fares stored as INTEGER paisa (1 BDT = 100 paisa) — no floats for money
+// Pool = one Tesla trip; many ride_requests can share one pool
+// audit_log = immutable append-only event record — never updated, only inserted
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  passenger
+  driver
+}
+
+enum PoolStatus {
+  open           // accepting new ride requests
+  full           // all seats taken
+  driver_arrived // driver is at pickup point
+  started        // trip in progress
+  completed      // trip finished
+  cancelled      // pool cancelled
+}
+
+// Ride lifecycle: requested → matched → driver_arrived → started → completed
+// Passenger can cancel only from 'requested'
+// Driver can cancel from 'requested' or 'matched'
+enum RideStatus {
+  requested
+  matched
+  driver_arrived
+  started
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  wallet
+}
+
+enum PaymentStatus {
+  pending
+  paid
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  phone        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role
+  walletPaisa  Int      @default(0) @map("wallet_paisa")
+  isOnline     Boolean  @default(false) @map("is_online")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  vehicle      Vehicle?
+  rideRequests RideRequest[]
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id        String   @id @default(uuid())
+  name      String                          // "Bullet"
+  plate     String   @unique               // "DHAKA-T-4201"
+  capacity  Int      @default(3)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  driverId  String   @unique @map("driver_id")
+  driver    User     @relation(fields: [driverId], references: [id])
+
+  pools     Pool[]
+
+  @@map("vehicles")
+}
+
+model Stop {
+  id   String         @id @default(uuid())
+  name String         @unique
+  lat  Decimal        @db.Decimal(10, 7)
+  lng  Decimal        @db.Decimal(10, 7)
+
+  routeStops         RouteStop[]
+  poolsAsOrigin      Pool[]      @relation("PoolOriginStop")
+  poolsAsDest        Pool[]      @relation("PoolDestStop")
+  ridesAsPickup      RideRequest[] @relation("RidePickupStop")
+  ridesAsDropoff     RideRequest[] @relation("RideDropoffStop")
+
+  @@map("stops")
+}
+
+model Route {
+  id          String  @id @default(uuid())
+  name        String                        // "Route 2 — Mohakhali → Badda Link Road"
+  description String?
+
+  routeStops  RouteStop[]
+  pools       Pool[]
+
+  @@map("routes")
+}
+
+// Junction table: ordered stops on each route
+model RouteStop {
+  routeId   String @map("route_id")
+  stopId    String @map("stop_id")
+  stopOrder Int    @map("stop_order")       // sequence position (1-based)
+
+  route     Route  @relation(fields: [routeId], references: [id])
+  stop      Stop   @relation(fields: [stopId], references: [id])
+
+  @@id([routeId, stopId])
+  @@index([routeId, stopOrder])
+  @@map("route_stops")
+}
+
+model Pool {
+  id        String     @id @default(uuid())
+  status    PoolStatus @default(open)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  vehicleId    String @map("vehicle_id")
+  vehicle      Vehicle @relation(fields: [vehicleId], references: [id])
+
+  routeId      String @map("route_id")
+  route        Route  @relation(fields: [routeId], references: [id])
+
+  // The pool's departure stop and furthest destination stop
+  originStopId String @map("origin_stop_id")
+  originStop   Stop   @relation("PoolOriginStop", fields: [originStopId], references: [id])
+
+  destStopId   String @map("dest_stop_id")
+  destStop     Stop   @relation("PoolDestStop", fields: [destStopId], references: [id])
+
+  rideRequests RideRequest[]
+
+  @@index([status])
+  @@index([routeId, status])
+  @@map("pools")
+}
+
+model RideRequest {
+  id            String        @id @default(uuid())
+  seats         Int           @default(1)
+  farePaisa     Int?          @map("fare_paisa")   // null until matched; set once, never changed
+  status        RideStatus    @default(requested)
+  paymentMethod PaymentMethod @default(cash) @map("payment_method")
+  paymentStatus PaymentStatus @default(pending) @map("payment_status")
+  pickupNote    String?       @map("pickup_note")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  passengerId    String  @map("passenger_id")
+  passenger      User    @relation(fields: [passengerId], references: [id])
+
+  poolId         String? @map("pool_id")            // null until driver accepts
+  pool           Pool?   @relation(fields: [poolId], references: [id])
+
+  pickupStopId   String  @map("pickup_stop_id")
+  pickupStop     Stop    @relation("RidePickupStop", fields: [pickupStopId], references: [id])
+
+  dropoffStopId  String  @map("dropoff_stop_id")
+  dropoffStop    Stop    @relation("RideDropoffStop", fields: [dropoffStopId], references: [id])
+
+  @@index([passengerId])
+  @@index([poolId])
+  @@index([status])
+  @@index([pickupStopId, dropoffStopId])
+  @@map("ride_requests")
+}
+
+// Immutable event log — INSERT only, never UPDATE or DELETE
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String   @map("entity_type")  // 'ride_request' | 'pool'
+  entityId   String   @map("entity_id")
+  action     String                         // 'status_change' | 'fare_set' | 'pool_join'
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actorId    String   @map("actor_id")
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  @@index([entityId])
+  @@map("audit_log")
+}
