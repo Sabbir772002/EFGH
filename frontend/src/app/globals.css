@@ -152,6 +152,11 @@ textarea::placeholder {
   color: var(--muted2);
 }
 
+select option {
+  background-color: var(--surface2);
+  color: var(--text);
+}
+
 label {
   display: block;
   font-size: 0.85rem;

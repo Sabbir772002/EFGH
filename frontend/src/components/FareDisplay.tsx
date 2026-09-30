@@ -49,7 +49,7 @@ export default function FareDisplay({
       <div
         style={{
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           marginTop: '0.75rem',
           paddingTop: '0.5rem',

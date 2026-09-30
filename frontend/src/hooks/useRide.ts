@@ -16,6 +16,10 @@ import { useSSE } from './useSSE';
 import { API } from '@/lib/constants';
 import type { RideRequest } from '@/lib/types';
 
+interface RideResponse {
+  ride: RideRequest;
+}
+
 interface UseRideResult {
   ride: RideRequest | null;
   isLoading: boolean;
@@ -30,7 +34,10 @@ export function useRide(rideId: string | null): UseRideResult {
 
   const { data, error, isLoading, mutate } = useSWR<RideRequest>(
     swrKey,
-    swrFetcher,
+    async (url: string) => {
+      const response = await swrFetcher<RideResponse>(url);
+      return response.ride;
+    },
     {
       revalidateOnFocus: false,
       // Slow poll as SSE safety net (SSE is the primary real-time channel)
@@ -47,7 +54,13 @@ export function useRide(rideId: string | null): UseRideResult {
   // When SSE delivers fresh data, update the SWR cache without a network call
   useEffect(() => {
     if (sseData) {
-      mutate(sseData, false); // false = don't revalidate from server
+      mutate((current) => current ? {
+        ...current,
+        ...sseData,
+        pool: current.pool && sseData.pool
+          ? { ...current.pool, ...sseData.pool, route: current.pool.route }
+          : current.pool,
+      } : sseData, false);
     }
   }, [sseData, mutate]);
 

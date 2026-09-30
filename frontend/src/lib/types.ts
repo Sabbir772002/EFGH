@@ -4,9 +4,19 @@
 
 // ── Enums ──────────────────────────────────────────────────────────────────
 
+// Backend always returns lowercase role values
 export type UserRole = 'passenger' | 'driver';
 
 export type RideStatus =
+  | 'REQUESTED'
+  | 'MATCHED'
+  | 'DRIVER_ASSIGNED'
+  | 'EN_ROUTE_PICKUP'
+  | 'PICKED_UP'
+  | 'EN_ROUTE_DROPOFF'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  // lowercase aliases (legacy)
   | 'requested'
   | 'matched'
   | 'driver_arrived'
@@ -15,12 +25,8 @@ export type RideStatus =
   | 'cancelled';
 
 export type PoolStatus =
-  | 'open'
-  | 'full'
-  | 'driver_arrived'
-  | 'started'
-  | 'completed'
-  | 'cancelled';
+  | 'OPEN' | 'FULL' | 'DRIVER_ARRIVED' | 'STARTED' | 'COMPLETED' | 'CANCELLED'
+  | 'open' | 'full' | 'driver_arrived' | 'started' | 'completed' | 'cancelled';
 
 export type PaymentMethod = 'cash' | 'wallet';
 export type PaymentStatus = 'pending' | 'paid';
@@ -31,10 +37,17 @@ export interface User {
   id: string;
   name: string;
   phone: string;
-  role: UserRole;
-  wallet_paisa: number;
-  is_online: boolean;
-  created_at: string; // ISO string
+  email?: string;
+  // Backend returns lowercase role: 'passenger' | 'driver'
+  role: 'passenger' | 'driver';
+  // Backend returns camelCase fields
+  walletPaisa: number;
+  isOnline: boolean;
+  createdAt: string; // ISO string
+  // Snake_case aliases for backwards compat
+  wallet_paisa?: number;
+  is_online?: boolean;
+  created_at?: string;
 }
 
 export interface Vehicle {
@@ -44,6 +57,10 @@ export interface Vehicle {
   capacity: number;
   driver_id: string;
   created_at: string;
+  // Extended fields from ride page
+  model?: string;
+  color?: string;
+  licensePlate?: string;
 }
 
 export interface Stop {
@@ -51,11 +68,16 @@ export interface Stop {
   name: string;
   lat: number;
   lng: number;
+  code?: string;
+  sequenceOrder?: number;
+  routeId?: string;
 }
 
 export interface Route {
   id: string;
   name: string;
+  code?: string;
+  color?: string;
   description?: string;
 }
 
@@ -81,6 +103,39 @@ export interface Pool {
   occupied_seats?: number;
 }
 
+export interface Ride {
+  id: string;
+  passenger_id: string;
+  pool_id: string | null;
+  pickup_stop_id: string;
+  dropoff_stop_id: string;
+  seats: number;
+  fare_paisa: number | null;
+  farePaisa?: number | null;       // camelCase alias
+  status: RideStatus;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  pickup_note?: string;
+  created_at: string;
+  updatedAt?: string;
+  updated_at?: string;
+  createdAt?: string;
+  // Joined fields
+  passenger?: User;
+  driver?: User;
+  vehicle?: Vehicle;
+  pool?: Pool;
+  route?: Route;
+  pickup_stop?: Stop;
+  dropoff_stop?: Stop;
+  pickupStop?: Stop;        // camelCase aliases
+  dropoffStop?: Stop;
+  pickupCode?: string;      // OTP verification code
+  surgeMultiplier?: number;
+  seatsRequested?: number;
+}
+
+// Alias for backwards compat — RideRequest was the original name
 export interface RideRequest {
   id: string;
   passenger_id: string;
@@ -88,18 +143,29 @@ export interface RideRequest {
   pickup_stop_id: string;
   dropoff_stop_id: string;
   seats: number;
-  fare_paisa: number | null;   // null until matched
+  fare_paisa: number | null;
+  farePaisa?: number | null;
   status: RideStatus;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
   pickup_note?: string;
   created_at: string;
   updated_at: string;
+  createdAt?: string;
+  updatedAt?: string;
   // Joined fields
   passenger?: User;
+  driver?: User;
+  vehicle?: Vehicle;
   pool?: Pool;
+  route?: Route;
   pickup_stop?: Stop;
   dropoff_stop?: Stop;
+  pickupStop?: Stop;
+  dropoffStop?: Stop;
+  pickupCode?: string;
+  surgeMultiplier?: number;
+  seatsRequested?: number;
 }
 
 // ── API Request / Response shapes ──────────────────────────────────────────
@@ -112,6 +178,7 @@ export interface AuthLoginRequest {
 export interface AuthRegisterRequest {
   name: string;
   phone: string;
+  email?: string;
   password: string;
   role: UserRole;
 }
@@ -132,7 +199,7 @@ export interface BookRideRequest {
 
 export interface BookRideResponse {
   ride: RideRequest;
-  matched: boolean;           // true = joined an open pool immediately
+  matched: boolean;
   pool?: Pool;
 }
 
@@ -141,6 +208,11 @@ export interface FareEstimateResponse {
   fare_bdt: number;
   route_dist_km: number;
   route_fare_bdt: number;
+  // camelCase / computed aliases
+  farePaisa?: number;
+  distanceKm?: number;
+  estimatedDurationMin?: number;
+  surgeMultiplier?: number;
 }
 
 export interface DriverDashboardResponse {

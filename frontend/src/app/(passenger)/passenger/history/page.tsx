@@ -12,10 +12,10 @@ import { Ride, RideStatus } from '@/lib/types';
 import { formatBDT } from '@/lib/constants';
 
 export default function PassengerHistoryPage() {
-  const { data: rides, isLoading } = useSWR<Ride[]>('/rides', swrFetcher);
+  const { data: ridesData, isLoading } = useSWR<{ count: number; rides: Ride[] }>('/rides', swrFetcher);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  const filteredRides = (rides || []).filter((r) => {
+  const filteredRides = (ridesData?.rides || []).filter((r) => {
     if (filterStatus === 'ALL') return true;
     return r.status === filterStatus;
   });
@@ -71,7 +71,7 @@ export default function PassengerHistoryPage() {
                 key={ride.id}
                 style={{
                   display: 'flex',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '1rem',
                   background: 'var(--bg-secondary)',
@@ -93,7 +93,7 @@ export default function PassengerHistoryPage() {
                   </div>
 
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                    Date: {new Date(ride.createdAt).toLocaleString()} • Seats: {ride.seatsRequested}
+                    Date: {new Date(ride.createdAt || ride.created_at || Date.now()).toLocaleString()} • Seats: {ride.seatsRequested || ride.seats || 1}
                   </div>
                 </div>
 
@@ -107,7 +107,7 @@ export default function PassengerHistoryPage() {
                     </Badge>
                   </div>
 
-                  <Link href={`/ride/${ride.id}`}>
+                  <Link href={`/passenger/ride/${ride.id}`}>
                     <Button variant="outline" size="sm">
                       Details →
                     </Button>

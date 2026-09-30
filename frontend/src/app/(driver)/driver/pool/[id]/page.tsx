@@ -58,7 +58,7 @@ export default function DriverPoolDetailPage() {
     try {
       await apiFetch(`/pools/${poolId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: nextStatus }),
+        body: { status: nextStatus },
       });
       mutate();
     } catch (err: any) {
@@ -147,7 +147,7 @@ export default function DriverPoolDetailPage() {
 
               {pool.status === 'started' && (
                 <Button
-                  variant="success"
+                  variant="primary"
                   fullWidth
                   loading={updating}
                   onClick={() => handleAdvanceStatus('completed')}

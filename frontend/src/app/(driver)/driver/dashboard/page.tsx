@@ -10,35 +10,58 @@ import { Spinner } from '@/components/ui/Spinner';
 import { OnlineToggle } from '@/components/OnlineToggle';
 import { PoolCapacityBar } from '@/components/PoolCapacityBar';
 import { apiFetch, swrFetcher } from '@/lib/api';
-import { DriverDashboardResponse, RideRequest } from '@/lib/types';
+import { RideRequest } from '@/lib/types';
 import { formatBDT } from '@/lib/constants';
 import useSWR from 'swr';
 import Link from 'next/link';
 
+// ── Inline response types matching the actual backend shape ──────────────────
+interface DriverUser { id: string; name: string; isOnline: boolean; }
+interface DriverVehicle { id: string; name: string; plate: string; capacity: number; }
+interface ActivePool {
+  id: string; status: string;
+  route: { id: string; name: string } | null;
+  originStop: { id: string; name: string } | null;
+  destStop: { id: string; name: string } | null;
+  seatsTaken: number; seatsFree: number;
+}
+interface DriverDashboardData {
+  driver: DriverUser;       // backend sends "driver", NOT "user"
+  vehicle: DriverVehicle | null;
+  activePool: ActivePool | null;  // backend sends "activePool" (camelCase), NOT "active_pool"
+}
+
+interface PendingResponse { count: number; pending: RideRequest[]; }
+
 export default function DriverDashboardPage() {
   const { user } = useAuth();
-  const { data: dashboard, mutate: mutateDashboard, isLoading: dashLoading } = useSWR<DriverDashboardResponse>(
+  const { data: dashboard, mutate: mutateDashboard, isLoading: dashLoading } = useSWR<DriverDashboardData>(
     '/driver/dashboard',
     swrFetcher
   );
 
-  const { data: pendingRequests, mutate: mutatePending } = useSWR<RideRequest[]>(
+  // /pools/pending returns { count, pending } — unwrap the array
+  const { data: pendingResponse, mutate: mutatePending } = useSWR<PendingResponse>(
     '/pools/pending',
     swrFetcher
   );
+  const pendingRequests = pendingResponse?.pending;
 
   const [toggling, setToggling] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
 
-  const isOnline = dashboard?.user?.is_online ?? false;
+  // Backend sends "driver" (not "user") and "isOnline" (not "is_online")
+  const isOnline = dashboard?.driver?.isOnline ?? false;
 
   // SSE real-time listener for new passenger requests on driver route
-  const sseData = useSSE<RideRequest[]>('/sse/driver/requests', isOnline);
+  const { data: sseData } = useSSE<PendingResponse>('/sse/driver/requests', { enabled: isOnline });
 
   useEffect(() => {
     if (sseData) {
-      mutatePending(sseData, false);
+      // SSE may also return wrapped { pending } shape
+      const rides = Array.isArray(sseData) ? sseData : (sseData as PendingResponse).pending;
+      mutatePending((prev) => ({ count: rides?.length ?? 0, pending: rides ?? [] }), false);
     }
   }, [sseData, mutatePending]);
 
@@ -48,7 +71,7 @@ export default function DriverDashboardPage() {
     try {
       await apiFetch('/driver/status', {
         method: 'PATCH',
-        body: JSON.stringify({ is_online: nextState }),
+        body: { online: nextState },
       });
       mutateDashboard();
     } catch (err: any) {
@@ -58,12 +81,29 @@ export default function DriverDashboardPage() {
     }
   };
 
+  // Fetch available routes for driver route selection
+  const { data: routesData } = useSWR<{ routes: Array<{ id: string; name: string }> }>('/routes', swrFetcher);
+  const routes = routesData?.routes || [];
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+
+  useEffect(() => {
+    if (routes.length > 0 && !selectedRouteId) {
+      setSelectedRouteId(routes[0].id);
+    }
+  }, [routes, selectedRouteId]);
+
   const handleAcceptRequest = async (rideRequestId: string) => {
+    const routeId = dashboard?.activePool?.route?.id || selectedRouteId;
+    if (!routeId) {
+      setActionError('Cannot accept: please select a route first.');
+      return;
+    }
     setAcceptingId(rideRequestId);
     setActionError('');
     try {
       await apiFetch(`/pools/${rideRequestId}/accept`, {
         method: 'POST',
+        body: { routeId },           // required by backend Zod schema
       });
       mutateDashboard();
       mutatePending();
@@ -82,7 +122,7 @@ export default function DriverDashboardPage() {
     );
   }
 
-  const activePool = dashboard?.active_pool;
+  const activePool = dashboard?.activePool;   // backend returns "activePool" (camelCase)
   const vehicle = dashboard?.vehicle;
 
   return (
@@ -112,6 +152,26 @@ export default function DriverDashboardPage() {
         <OnlineToggle isOnline={isOnline} onToggle={handleToggleOnline} disabled={toggling} />
       </div>
 
+      {/* Route Selector (when no active pool) */}
+      {!activePool && routes.length > 0 && (
+        <Card style={{ marginBottom: '1.5rem' }}>
+          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--muted)', marginBottom: '0.5rem' }}>
+            SELECT OPERATING ROUTE FOR POOL
+          </label>
+          <select
+            value={selectedRouteId}
+            onChange={(e) => setSelectedRouteId(e.target.value)}
+            style={{ padding: '0.65rem 1rem', width: '100%', borderRadius: 'var(--radius-sm)', background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          >
+            {routes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+        </Card>
+      )}
+
       {/* Active Pool Card (if currently running a pool) */}
       {activePool && (
         <Card style={{ border: '2px solid var(--accent)', marginBottom: '1.5rem' }}>
@@ -123,7 +183,7 @@ export default function DriverDashboardPage() {
                 <Badge variant="accent">{activePool.status.toUpperCase()}</Badge>
               </div>
               <p style={{ color: 'var(--muted)', fontSize: '0.875rem', margin: 0 }}>
-                Route: <strong>{activePool.route?.name}</strong> ({activePool.origin_stop?.name} → {activePool.dest_stop?.name})
+                Route: <strong>{activePool.route?.name}</strong> ({activePool.originStop?.name} → {activePool.destStop?.name})
               </p>
             </div>
 
@@ -133,7 +193,7 @@ export default function DriverDashboardPage() {
           </div>
 
           <PoolCapacityBar
-            occupied={activePool.occupied_seats || 0}
+            occupied={activePool.seatsTaken || 0}
             capacity={vehicle?.capacity || 3}
           />
         </Card>
@@ -160,7 +220,7 @@ export default function DriverDashboardPage() {
                 key={req.id}
                 style={{
                   display: 'flex',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '1rem',
                   background: 'var(--surface)',

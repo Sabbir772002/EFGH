@@ -53,7 +53,7 @@ export default function HomePage() {
             transition: 'opacity 180ms ease',
           }}
         >
-          Passenger Login
+          Login
         </Link>
         <Link
           href="/register"

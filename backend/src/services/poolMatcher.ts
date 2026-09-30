@@ -117,7 +117,7 @@ export async function matchOrEnqueue(params: {
         // Fare calculation: existing passengers + new one
         const existingRides = await tx.rideRequest.findMany({
           where: { poolId: candidate.id, status: { not: 'cancelled' } },
-          select: { pickupStopId: true, dropoffStopId: true, seats: true },
+          select: { id: true, pickupStopId: true, dropoffStopId: true, seats: true },
         });
 
         const allPassengers = [
@@ -128,6 +128,19 @@ export async function matchOrEnqueue(params: {
         ];
         const segmentLoads = buildSegmentLoads(stopCoords, allPassengers);
         const farePaisa = calcPassengerFarePaisa(stopCoords, pickupStopId, dropoffStopId, segmentLoads);
+
+        for (const ride of existingRides) {
+          const rideFarePaisa = calcPassengerFarePaisa(
+            stopCoords,
+            ride.pickupStopId,
+            ride.dropoffStopId,
+            segmentLoads,
+          );
+          await tx.rideRequest.update({
+            where: { id: ride.id },
+            data: { farePaisa: rideFarePaisa },
+          });
+        }
 
         const rideRequest = await tx.rideRequest.create({
           data: { passengerId, poolId: candidate.id, pickupStopId, dropoffStopId, seats, farePaisa, status: 'matched', paymentMethod, pickupNote },

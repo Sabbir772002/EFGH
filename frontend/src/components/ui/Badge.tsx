@@ -3,7 +3,9 @@
 // defined in globals.css (.status-*).
 // Also accepts explicit variant: success | warning | danger | info | default.
 
-type Variant = 'success' | 'warning' | 'danger' | 'info' | 'default';
+import React from 'react';
+
+type Variant = 'success' | 'warning' | 'danger' | 'info' | 'default' | 'neutral' | 'accent' | 'cyan';
 
 // Known status strings from the backend enums.
 type RideStatus =
@@ -27,14 +29,18 @@ interface BadgeProps {
 
 // Explicit variant styles — used when status prop is not provided.
 const variantStyles: Record<Variant, React.CSSProperties> = {
-  success: { color: 'var(--success)', background: 'rgba(63,185,80,0.12)' },
-  warning: { color: 'var(--warning)', background: 'rgba(210,153,34,0.12)' },
-  danger:  { color: 'var(--danger)',  background: 'rgba(248,81,73,0.12)' },
-  info:    { color: 'var(--accent2)', background: 'rgba(88,166,255,0.12)' },
-  default: { color: 'var(--muted)',   background: 'rgba(139,148,158,0.12)' },
+  success: { color: 'var(--success)',  background: 'rgba(63,185,80,0.12)' },
+  warning: { color: 'var(--warning)',  background: 'rgba(210,153,34,0.12)' },
+  danger:  { color: 'var(--danger)',   background: 'rgba(248,81,73,0.12)' },
+  info:    { color: 'var(--accent2)',  background: 'rgba(88,166,255,0.12)' },
+  default: { color: 'var(--muted)',    background: 'rgba(139,148,158,0.12)' },
+  neutral: { color: 'var(--muted)',    background: 'rgba(139,148,158,0.12)' },
+  accent:  { color: 'var(--accent)',   background: 'rgba(255,214,0,0.12)' },
+  cyan:    { color: 'var(--accent2)',  background: 'rgba(6,182,212,0.12)' },
 };
 
-export default function Badge({ status, variant, children, style }: BadgeProps) {
+
+export function Badge({ status, variant, children, style }: BadgeProps) {
   // If status given, use the .status-{status} class from globals.css.
   // If variant given, use inline styles for the colour pair.
   const className = status ? `status-${status}` : undefined;
@@ -60,3 +66,5 @@ export default function Badge({ status, variant, children, style }: BadgeProps) 
     </span>
   );
 }
+
+export default Badge;

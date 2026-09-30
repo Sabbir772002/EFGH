@@ -12,9 +12,14 @@ import { swrFetcher } from '@/lib/api';
 import { Ride } from '@/lib/types';
 import { formatBDT } from '@/lib/constants';
 
+// GET /api/v1/rides returns { count: number, rides: Ride[] } — NOT a plain array
+interface RidesResponse { count: number; rides: Ride[]; }
+
 export default function PassengerDashboardPage() {
   const { user } = useAuth();
-  const { data: rides, isLoading } = useSWR<Ride[]>('/rides', swrFetcher);
+  // Unwrap: backend returns { count, rides: [...] } not a plain Ride[]
+  const { data: ridesData, isLoading } = useSWR<RidesResponse>('/rides', swrFetcher);
+  const rides = ridesData?.rides;
 
   const activeRide = rides?.find((r) =>
     ['REQUESTED', 'MATCHED', 'DRIVER_ASSIGNED', 'EN_ROUTE_PICKUP', 'PICKED_UP', 'EN_ROUTE_DROPOFF'].includes(r.status)
@@ -33,7 +38,7 @@ export default function PassengerDashboardPage() {
           padding: '1.5rem',
           marginBottom: '2rem',
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
@@ -48,7 +53,7 @@ export default function PassengerDashboardPage() {
           </p>
         </div>
 
-        <Link href="/book">
+        <Link href="/passenger/book">
           <Button variant="primary">⚡ Book New Ride</Button>
         </Link>
       </div>
@@ -68,7 +73,7 @@ export default function PassengerDashboardPage() {
               </p>
             </div>
 
-            <Link href={`/ride/${activeRide.id}`}>
+            <Link href={`/passenger/ride/${activeRide.id}`}>
               <Button variant="primary">View Live Tracker →</Button>
             </Link>
           </div>
@@ -92,7 +97,7 @@ export default function PassengerDashboardPage() {
                   key={ride.id}
                   style={{
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '0.875rem',
                     background: 'var(--bg-secondary)',
@@ -105,7 +110,7 @@ export default function PassengerDashboardPage() {
                       {ride.pickupStop?.name} → {ride.dropoffStop?.name}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                      {new Date(ride.createdAt).toLocaleDateString()} • Route: {ride.route?.code}
+                      {new Date(ride.createdAt || ride.created_at || Date.now()).toLocaleDateString()} • Route: {ride.route?.code}
                     </div>
                   </div>
 
@@ -121,7 +126,7 @@ export default function PassengerDashboardPage() {
               ))}
 
               <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <Link href="/history" style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500 }}>
+                <Link href="/passenger/history" style={{ color: 'var(--accent-cyan)', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500 }}>
                   View All Trip History →
                 </Link>
               </div>

@@ -6,7 +6,7 @@
 import React from 'react';
 import Spinner from './Spinner';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -42,6 +42,12 @@ const variantStyles: Record<Variant, React.CSSProperties> = {
     border: '1px solid transparent',
     fontWeight: 500,
   },
+  outline: {
+    background: 'transparent',
+    color: 'var(--text-primary, #ffffff)',
+    border: '1px solid var(--border-color, rgba(255, 255, 255, 0.2))',
+    fontWeight: 500,
+  },
 };
 
 const sizeStyles: Record<Size, React.CSSProperties> = {
@@ -50,7 +56,7 @@ const sizeStyles: Record<Size, React.CSSProperties> = {
   lg: { padding: '0.85rem 2rem', fontSize: '1.05rem', borderRadius: 'var(--radius)' },
 };
 
-export default function Button({
+export function Button({
   variant = 'primary',
   size = 'md',
   loading = false,
@@ -97,3 +103,5 @@ export default function Button({
     </button>
   );
 }
+
+export default Button;

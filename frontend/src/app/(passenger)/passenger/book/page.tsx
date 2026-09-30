@@ -13,11 +13,11 @@ import { Stop, FareEstimateResponse } from '@/lib/types';
 
 export default function BookRidePage() {
   const router = useRouter();
-  const { routes, loading: loadingRoutes } = useRoutes();
-  const { stops, loading: loadingStops } = useStops();
+  const { routes, isLoading: loadingRoutes } = useRoutes();
+  const { stops, isLoading: loadingStops } = useStops();
 
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
-  const { stops: routeStops } = useRouteStops(selectedRouteId || undefined);
+  const { stops: routeStops } = useRouteStops(selectedRouteId || null);
 
   const [pickupStopId, setPickupStopId] = useState<string>('');
   const [dropoffStopId, setDropoffStopId] = useState<string>('');
@@ -44,7 +44,7 @@ export default function BookRidePage() {
 
   // Fetch fare estimate when pickup and dropoff are both selected
   useEffect(() => {
-    if (!pickupStopId || !dropoffStopId || pickupStopId === dropoffStopId) {
+    if (!selectedRouteId || !pickupStopId || !dropoffStopId || pickupStopId === dropoffStopId) {
       setEstimate(null);
       return;
     }
@@ -53,15 +53,26 @@ export default function BookRidePage() {
       setEstimating(true);
       setError('');
       try {
-        const res = await apiFetch<FareEstimateResponse>('/fare/estimate', {
-          method: 'POST',
-          body: JSON.stringify({
-            pickupStopId,
-            dropoffStopId,
-            seatsRequested,
-          }),
+        const query = new URLSearchParams({
+          pickupStopId,
+          dropoffStopId,
+          routeId: selectedRouteId,
         });
-        setEstimate(res);
+        const res = await apiFetch<{
+          estimate: { soloFarePaisa: number };
+          debug: { routeDistKm: string; fullRouteFareTk: number };
+        }>(`/fare/estimate?${query.toString()}`, { method: 'GET' });
+
+        setEstimate({
+          fare_paisa: res.estimate.soloFarePaisa,
+          fare_bdt: res.estimate.soloFarePaisa / 100,
+          route_dist_km: Number(res.debug.routeDistKm),
+          route_fare_bdt: res.debug.fullRouteFareTk,
+          farePaisa: res.estimate.soloFarePaisa,
+          distanceKm: Number(res.debug.routeDistKm),
+          estimatedDurationMin: 15,
+          surgeMultiplier: 1,
+        });
       } catch (err: any) {
         setError(err.message || 'Failed to estimate fare');
         setEstimate(null);
@@ -71,7 +82,7 @@ export default function BookRidePage() {
     };
 
     fetchEstimate();
-  }, [pickupStopId, dropoffStopId, seatsRequested]);
+  }, [selectedRouteId, pickupStopId, dropoffStopId]);
 
   // Handle Stop Click from SVG Map
   const handleStopSelectFromMap = (stop: Stop) => {
@@ -98,17 +109,17 @@ export default function BookRidePage() {
     setError('');
 
     try {
-      const res = await apiFetch<{ id: string; status: string }>('/rides', {
+      const res = await apiFetch<{ rideRequestId: string; status: string }>('/rides', {
         method: 'POST',
-        body: JSON.stringify({
+        body: {
           pickupStopId,
           dropoffStopId,
           routeId: selectedRouteId,
-          seatsRequested,
-        }),
+          seats: seatsRequested,
+        },
       });
 
-      router.push(`/ride/${res.id}`);
+      router.push(`/passenger/ride/${res.rideRequestId}`);
     } catch (err: any) {
       setError(err.message || 'Failed to book ride. Please try again.');
       setBooking(false);
@@ -118,47 +129,53 @@ export default function BookRidePage() {
   const availableStops = routeStops.length > 0 ? routeStops : stops;
 
   return (
-    <div style={{ padding: '1rem 0' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>Book a Pool Ride</h1>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+    <div style={{ padding: '0.5rem 0', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ marginBottom: '1rem' }}>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Book a Pool Ride</h1>
+        <p style={{ color: 'var(--muted)', marginTop: '0.2rem', fontSize: '0.85rem' }}>
           Select your route and stops on the map or dropdown below.
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '1.5rem', alignItems: 'start' }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1.25rem',
+          alignItems: 'start',
+        }}
+      >
         {/* Left: Map */}
-        <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', padding: '1rem', border: '1px solid var(--border-color)' }}>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius)', padding: '0.875rem', border: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
             {routes.map((r) => (
               <button
                 key={r.id}
                 onClick={() => setSelectedRouteId(r.id)}
                 style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: 'var(--radius-full)',
-                  border: `1px solid ${selectedRouteId === r.id ? r.color : 'var(--border-color)'}`,
-                  background: selectedRouteId === r.id ? `${r.color}22` : 'var(--bg-secondary)',
-                  color: selectedRouteId === r.id ? r.color : 'var(--text-secondary)',
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: 'var(--radius-sm)',
+                  border: `1px solid ${selectedRouteId === r.id ? r.color : 'var(--border)'}`,
+                  background: selectedRouteId === r.id ? `${r.color}22` : 'var(--surface2)',
+                  color: selectedRouteId === r.id ? r.color : 'var(--muted)',
                   fontWeight: selectedRouteId === r.id ? 600 : 400,
-                  fontSize: '0.875rem',
+                  fontSize: '0.78rem',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   transition: 'all 0.2s ease',
                 }}
               >
-                ● {r.name} ({r.code})
+                ● {r.name}
               </button>
             ))}
           </div>
 
           <RouteMap
-            routes={routes}
             stops={stops}
-            selectedRouteId={selectedRouteId}
-            pickupStopId={pickupStopId}
-            dropoffStopId={dropoffStopId}
-            onSelectStop={handleStopSelectFromMap}
+            pickup={stops.find((s) => s.id === pickupStopId) || null}
+            dropoff={stops.find((s) => s.id === dropoffStopId) || null}
+            onStopClick={handleStopSelectFromMap}
+            activeRouteKey={routes.find((r) => r.id === selectedRouteId)?.code?.toLowerCase()}
           />
         </div>
 
@@ -257,7 +274,7 @@ export default function BookRidePage() {
                 Seats
               </label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                {[1, 2, 3, 4].map((num) => (
+                {[1, 2, 3].map((num) => (
                   <button
                     key={num}
                     type="button"
@@ -300,22 +317,22 @@ export default function BookRidePage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                   <span>Distance:</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{estimate.distanceKm.toFixed(2)} km</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{(estimate.distanceKm ?? estimate.route_dist_km ?? 0).toFixed(2)} km</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                   <span>Est. Duration:</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>~{estimate.estimatedDurationMin} mins</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>~{estimate.estimatedDurationMin ?? 15} mins</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                   <span>Demand Multiplier:</span>
-                  <Badge variant={estimate.surgeMultiplier > 1 ? 'warning' : 'neutral'}>
-                    {estimate.surgeMultiplier}x Surge
+                  <Badge variant={(estimate.surgeMultiplier ?? 1) > 1 ? 'warning' : 'neutral'}>
+                    {estimate.surgeMultiplier ?? 1.0}x Surge
                   </Badge>
                 </div>
                 <div
                   style={{
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     marginTop: '0.5rem',
                     paddingTop: '0.5rem',
@@ -324,7 +341,7 @@ export default function BookRidePage() {
                 >
                   <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Total Fare:</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-green)' }}>
-                    {formatBDT(estimate.farePaisa)}
+                    {formatBDT(estimate.farePaisa ?? estimate.fare_paisa ?? 0)}
                   </span>
                 </div>
               </div>

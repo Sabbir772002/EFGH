@@ -16,7 +16,7 @@ export default function PassengerLiveRidePage() {
   const router = useRouter();
   const rideId = params?.id as string;
 
-  const { ride, loading, error, isLive } = useRide(rideId);
+  const { ride, isLoading: loading, error, isSSEConnected: isLive } = useRide(rideId);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
 
@@ -26,7 +26,7 @@ export default function PassengerLiveRidePage() {
     setCancelError('');
 
     try {
-      await apiFetch(`/rides/${rideId}/cancel`, { method: 'POST' });
+      await apiFetch(`/rides/${rideId}/cancel`, { method: 'PATCH' });
     } catch (err: any) {
       setCancelError(err.message || 'Failed to cancel ride');
     } finally {
@@ -37,7 +37,7 @@ export default function PassengerLiveRidePage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', height: '60vh', alignItems: 'center', justifyContent: 'center' }}>
-        <Spinner size="lg" />
+        <Spinner size={32} />
       </div>
     );
   }
@@ -47,9 +47,9 @@ export default function PassengerLiveRidePage() {
       <div style={{ padding: '2rem 0', maxWidth: '500px', margin: '0 auto' }}>
         <Card title="Ride Not Found">
           <p style={{ color: 'var(--accent-red)', marginBottom: '1rem' }}>
-            {error ? error.message : 'Unable to load ride details.'}
+            {error ? (error as any).message || String(error) : 'Unable to load ride details.'}
           </p>
-          <Button variant="secondary" onClick={() => router.push('/dashboard')}>
+          <Button variant="secondary" onClick={() => router.push('/passenger/dashboard')}>
             Back to Dashboard
           </Button>
         </Card>
@@ -57,7 +57,9 @@ export default function PassengerLiveRidePage() {
     );
   }
 
-  const canCancel = ['REQUESTED', 'MATCHED', 'DRIVER_ASSIGNED'].includes(ride.status);
+  const rideStatus = ride.status.toUpperCase();
+  const canCancel = ['REQUESTED', 'MATCHED', 'DRIVER_ASSIGNED'].includes(rideStatus);
+  const route = ride.pool?.route;
 
   return (
     <div style={{ padding: '1rem 0', maxWidth: '800px', margin: '0 auto' }}>
@@ -75,7 +77,7 @@ export default function PassengerLiveRidePage() {
           </p>
         </div>
 
-        <Button variant="outline" onClick={() => router.push('/dashboard')}>
+        <Button variant="secondary" onClick={() => router.push('/passenger/dashboard')}>
           Dashboard
         </Button>
       </div>
@@ -88,7 +90,7 @@ export default function PassengerLiveRidePage() {
 
       {/* Main Status Tracker Card */}
       <Card style={{ marginBottom: '1.5rem' }}>
-        <RideStatusTracker status={ride.status} />
+        <RideStatusTracker status={rideStatus as typeof ride.status} />
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
@@ -100,9 +102,9 @@ export default function PassengerLiveRidePage() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                 <span style={{ fontSize: '1.25rem' }}>🟢</span>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', uppercase: 'true' }}>PICKUP STOP</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>PICKUP STOP</div>
                   <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ride.pickupStop?.name || 'Pickup Stop'}</div>
-                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Route: {ride.route?.name} ({ride.route?.code})</div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Route: {route?.name || 'Not assigned'}</div>
                 </div>
               </div>
 
@@ -111,7 +113,7 @@ export default function PassengerLiveRidePage() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
                 <span style={{ fontSize: '1.25rem' }}>🔴</span>
                 <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', uppercase: 'true' }}>DROP-OFF STOP</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>DROP-OFF STOP</div>
                   <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{ride.dropoffStop?.name || 'Dropoff Stop'}</div>
                 </div>
               </div>
@@ -169,9 +171,9 @@ export default function PassengerLiveRidePage() {
         {/* Right Column: Fare & Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <FareDisplay
-            farePaisa={ride.farePaisa}
-            surgeMultiplier={ride.surgeMultiplier}
-            seatsRequested={ride.seatsRequested}
+            farePaisa={ride.farePaisa ?? ride.fare_paisa ?? 0}
+            surgeMultiplier={ride.surgeMultiplier ?? 1}
+            seatsRequested={ride.seatsRequested ?? ride.seats ?? 1}
           />
 
           {/* Actions */}
@@ -187,13 +189,13 @@ export default function PassengerLiveRidePage() {
               </Button>
             )}
 
-            {ride.status === 'COMPLETED' && (
+            {rideStatus === 'COMPLETED' && (
               <div style={{ textAlign: 'center', color: 'var(--accent-green)', fontWeight: 600 }}>
                 🎉 You have arrived at your destination!
               </div>
             )}
 
-            {!canCancel && ride.status !== 'COMPLETED' && ride.status !== 'CANCELLED' && (
+            {!canCancel && rideStatus !== 'COMPLETED' && rideStatus !== 'CANCELLED' && (
               <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                 Your trip is currently in progress. Sit back and enjoy your Tesla pool!
               </p>

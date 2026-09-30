@@ -22,7 +22,13 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register({ name, email, password, phone, role });
+      await register({
+        name,
+        email,
+        password,
+        phone,
+        role: role.toLowerCase() as 'passenger' | 'driver',
+      });
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

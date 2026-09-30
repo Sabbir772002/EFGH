@@ -4,9 +4,10 @@
 
 // ── API ────────────────────────────────────────────────────────────────────
 
-/** Backend base URL — reads from .env.local; falls back to localhost for dev. */
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const rawApiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+export const API_BASE = rawApiBase.endsWith('/api/v1')
+  ? rawApiBase
+  : `${rawApiBase.replace(/\/+$/, '')}/api/v1`;
 
 // ── Local storage keys ─────────────────────────────────────────────────────
 

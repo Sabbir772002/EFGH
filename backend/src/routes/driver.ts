@@ -25,7 +25,7 @@ router.patch('/status', async (req: AuthenticatedRequest, res: Response, next: N
   try {
     if (!requireDriver(req, res)) return;
 
-    const { online } = req.body as { online: boolean };
+    const online = req.body.online ?? req.body.is_online;
     if (typeof online !== 'boolean') {
       res.status(400).json({ error: '`online` must be a boolean' });
       return;

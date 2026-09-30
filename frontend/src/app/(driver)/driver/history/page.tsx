@@ -75,7 +75,7 @@ export default function DriverHistoryPage() {
                   key={pool.id}
                   style={{
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: '1rem',
                     background: 'var(--surface)',

@@ -218,7 +218,7 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
       // Calc fare: existing passengers + this new one
       const existingRides = await tx.rideRequest.findMany({
         where: { poolId: pool.id, status: { not: 'cancelled' } },
-        select: { pickupStopId: true, dropoffStopId: true, seats: true },
+        select: { id: true, pickupStopId: true, dropoffStopId: true, seats: true },
       });
 
       const allPassengers = [
@@ -238,6 +238,20 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
         rideRequest.dropoffStopId,
         segmentLoads,
       );
+
+      // Recalculate and update fare for ALL passengers in the pool (including new one)
+      for (const ride of existingRides) {
+        const rideFarePaisa = calcPassengerFarePaisa(
+          stopCoords,
+          ride.pickupStopId,
+          ride.dropoffStopId,
+          segmentLoads,
+        );
+        await tx.rideRequest.update({
+          where: { id: ride.id },
+          data: { farePaisa: rideFarePaisa },
+        });
+      }
 
       // Update the ride request — match it to pool
       const updatedRide = await tx.rideRequest.update({
@@ -291,6 +305,82 @@ router.post('/:rideRequestId/accept', async (req: AuthenticatedRequest, res: Res
       res.status(400).json({ error: e.message });
       return;
     }
+    next(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/v1/pools/:poolId — Driver views one of their pools
+// ---------------------------------------------------------------------------
+router.get('/:poolId', async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!requireDriver(req, res)) return;
+
+    const pool = await prisma.pool.findUnique({
+      where: { id: req.params.poolId },
+      include: {
+        vehicle: true,
+        route: { select: { id: true, name: true, description: true } },
+        originStop: { select: { id: true, name: true, lat: true, lng: true } },
+        destStop: { select: { id: true, name: true, lat: true, lng: true } },
+        rideRequests: {
+          where: { status: { not: 'cancelled' } },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            passenger: { select: { id: true, name: true, phone: true, role: true } },
+            pickupStop: { select: { id: true, name: true, lat: true, lng: true } },
+            dropoffStop: { select: { id: true, name: true, lat: true, lng: true } },
+          },
+        },
+      },
+    });
+
+    if (!pool) {
+      res.status(404).json({ error: 'Pool not found' });
+      return;
+    }
+
+    if (pool.vehicle.driverId !== req.user!.id) {
+      res.status(403).json({ error: 'This is not your pool' });
+      return;
+    }
+
+    const seatsTaken = pool.rideRequests.reduce((sum, ride) => sum + ride.seats, 0);
+
+    res.json({
+      id: pool.id,
+      status: pool.status,
+      created_at: pool.createdAt,
+      updated_at: pool.updatedAt,
+      vehicle_id: pool.vehicleId,
+      route_id: pool.routeId,
+      origin_stop_id: pool.originStopId,
+      dest_stop_id: pool.destStopId,
+      vehicle: pool.vehicle,
+      route: pool.route,
+      origin_stop: pool.originStop,
+      dest_stop: pool.destStop,
+      occupied_seats: seatsTaken,
+      ride_requests: pool.rideRequests.map((ride) => ({
+        id: ride.id,
+        passenger_id: ride.passengerId,
+        pool_id: ride.poolId,
+        pickup_stop_id: ride.pickupStopId,
+        dropoff_stop_id: ride.dropoffStopId,
+        seats: ride.seats,
+        fare_paisa: ride.farePaisa,
+        status: ride.status,
+        payment_method: ride.paymentMethod,
+        payment_status: ride.paymentStatus,
+        pickup_note: ride.pickupNote,
+        created_at: ride.createdAt,
+        updated_at: ride.updatedAt,
+        passenger: ride.passenger,
+        pickup_stop: ride.pickupStop,
+        dropoff_stop: ride.dropoffStop,
+      })),
+    });
+  } catch (err) {
     next(err);
   }
 });

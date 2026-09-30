@@ -51,7 +51,7 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
   });
 
   // Parse body regardless of status for the error message

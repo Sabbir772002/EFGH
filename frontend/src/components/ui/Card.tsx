@@ -4,12 +4,16 @@
 import React from 'react';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  title?: string;
+  subtitle?: string;
   hover?: boolean;      // adds lift effect on hover
   accent?: boolean;     // left yellow accent border
   padding?: string;     // override default padding (1.5rem)
 }
 
-export default function Card({
+export function Card({
+  title,
+  subtitle,
   hover = false,
   accent = false,
   padding = '1.5rem',
@@ -46,7 +50,19 @@ export default function Card({
       }}
       {...rest}
     >
+      {title && (
+        <div style={{ marginBottom: children ? '1rem' : 0 }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>{title}</h2>
+          {subtitle && (
+            <p style={{ color: 'var(--text-secondary, rgba(255,255,255,0.6))', fontSize: '0.875rem', marginTop: '0.25rem', margin: 0 }}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+      )}
       {children}
     </div>
   );
 }
+
+export default Card;

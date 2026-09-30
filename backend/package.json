@@ -10,7 +10,7 @@
     "test:watch": "jest --runInBand --watch"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node dist/prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",

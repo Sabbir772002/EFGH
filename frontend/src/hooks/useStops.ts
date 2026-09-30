@@ -17,14 +17,31 @@ interface UseStopsResult {
   error: unknown;
 }
 
+interface StopsResponse {
+  count: number;
+  stops: Stop[];
+}
+
+interface RoutesResponse {
+  routes: Route[];
+}
+
+interface RouteStopsResponse {
+  route: Route;
+  stops: Array<{
+    order: number;
+    stop: Stop;
+  }>;
+}
+
 export function useStops(): UseStopsResult {
-  const { data, error, isLoading } = useSWR<Stop[]>(API.stops, swrFetcher, {
+  const { data, error, isLoading } = useSWR<StopsResponse>(API.stops, swrFetcher, {
     revalidateOnFocus: false,
     revalidateIfStale: false, // stops are seeded once; never change at runtime
   });
 
   return {
-    stops: data ?? [],
+    stops: data?.stops ?? [],
     isLoading,
     error,
   };
@@ -39,13 +56,13 @@ interface UseRoutesResult {
 }
 
 export function useRoutes(): UseRoutesResult {
-  const { data, error, isLoading } = useSWR<Route[]>(API.routes, swrFetcher, {
+  const { data, error, isLoading } = useSWR<RoutesResponse>(API.routes, swrFetcher, {
     revalidateOnFocus: false,
     revalidateIfStale: false,
   });
 
   return {
-    routes: data ?? [],
+    routes: data?.routes ?? [],
     isLoading,
     error,
   };
@@ -62,13 +79,13 @@ interface UseRouteStopsResult {
 export function useRouteStops(routeId: string | null): UseRouteStopsResult {
   const swrKey = routeId ? API.routeStops(routeId) : null;
 
-  const { data, error, isLoading } = useSWR<Stop[]>(swrKey, swrFetcher, {
+  const { data, error, isLoading } = useSWR<RouteStopsResponse>(swrKey, swrFetcher, {
     revalidateOnFocus: false,
     revalidateIfStale: false,
   });
 
   return {
-    stops: data ?? [],
+    stops: data?.stops.map(({ order, stop }) => ({ ...stop, sequenceOrder: order })) ?? [],
     isLoading,
     error,
   };
